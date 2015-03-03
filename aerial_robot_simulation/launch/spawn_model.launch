@@ -1,0 +1,7 @@
+<launch>
+  <arg name="model" default="$(find dragon)/urdf/mujoco/dragon.xml"/>
+
+  <node pkg="aerial_robot_simulation" type="simple_spawn.py" name="simple_spawn" output="screen">
+    <param name="model" value="$(arg model)"/>
+  </node>
+</launch>
