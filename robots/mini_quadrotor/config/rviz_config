@@ -55,6 +55,8 @@ Visualization Manager:
       Value: true
     - Class: rviz/TF
       Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
         All Enabled: true
@@ -64,17 +66,11 @@ Visualization Manager:
           Value: true
         quadrotor/fc:
           Value: true
+        quadrotor/lidar_imu:
+          Value: true
         quadrotor/main_body:
           Value: true
         quadrotor/root:
-          Value: true
-        quadrotor/thrust1:
-          Value: true
-        quadrotor/thrust2:
-          Value: true
-        quadrotor/thrust3:
-          Value: true
-        quadrotor/thrust4:
           Value: true
         world:
           Value: true
@@ -94,17 +90,11 @@ Visualization Manager:
                 {}
               quadrotor/fc:
                 {}
-              quadrotor/thrust1:
-                {}
-              quadrotor/thrust2:
-                {}
-              quadrotor/thrust3:
-                {}
-              quadrotor/thrust4:
+              quadrotor/lidar_imu:
                 {}
       Update Interval: 0
       Value: true
-    - Alpha: 1
+    - Alpha: 0.4000000059604645
       Class: rviz/RobotModel
       Collision Enabled: false
       Enabled: true
@@ -120,6 +110,10 @@ Visualization Manager:
           Show Trail: false
           Value: true
         fc:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        lidar_imu:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -202,9 +196,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.1597973108291626
+      Pitch: 1.0297971963882446
       Target Frame: <Fixed Frame>
-      Yaw: 2.920400381088257
+      Yaw: 2.830399751663208
     Saved: ~
 Window Geometry:
   Displays:
