@@ -267,6 +267,7 @@ namespace aerial_robot_navigation
     int  control_frame_;
     int estimate_mode_;
     bool  force_att_control_flag_;
+    bool z_no_estimate_flag_;
     bool trajectory_mode_;
     bool lock_teleop_;
     ros::Time force_landing_start_time_;
@@ -377,7 +378,11 @@ namespace aerial_robot_navigation
     {
       /* z(altitude) */
       /* check whether there is the fusion for the altitude */
-      if(!estimator_->getStateStatus(State::Z_BASE, estimate_mode_))
+      if(z_no_estimate_flag_)
+        {
+          ROS_ERROR("Flight navigation: Do not estimate z state");
+        }
+      if(!estimator_->getStateStatus(State::Z_BASE, estimate_mode_) && !z_no_estimate_flag_)
         {
           ROS_ERROR("Flight Navigation: No correct sensor fusion for z(altitude), can not fly");
           return;
