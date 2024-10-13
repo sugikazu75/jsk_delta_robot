@@ -85,6 +85,11 @@ namespace sensor_plugin
       filtered_vel_cog_ = filtered_vel_cog;
     }
 
+    tf::Vector3 getWzB()
+    {
+      return wz_b_;
+    }
+
   protected:
     ros::Publisher  acc_pub_;
     ros::Publisher  imu_pub_;

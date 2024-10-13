@@ -114,7 +114,7 @@ namespace sensor_plugin
         omega_[i] = imu_msg->gyro_data[i];  // baselink frame
         mag_[i] = imu_msg->mag_data[i];  // baselink frame
         wz_b_[i] = imu_msg->angles[i];  // workaround to avoid the singularity of RPY Euler angles.
-       }
+      }
 
     if(first_flag)
       {
@@ -171,6 +171,7 @@ namespace sensor_plugin
       {
         if(handler->getStatus() == Status::ACTIVE)
           {
+            ROS_ERROR_STREAM_ONCE("find active vo sensor");
             auto vo_handler = boost::dynamic_pointer_cast<sensor_plugin::VisualOdometry>(handler);
 
             if (vo_handler->rotValid())

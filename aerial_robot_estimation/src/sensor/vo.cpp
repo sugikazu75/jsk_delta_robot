@@ -34,6 +34,7 @@
  *********************************************************************/
 
 /* base class */
+#include <aerial_robot_estimation/sensor/imu.h>
 #include <aerial_robot_estimation/sensor/vo.h>
 
 namespace
@@ -109,6 +110,10 @@ namespace sensor_plugin
 
     /* update the sensor tf w.r.t baselink */
     if(!updateBaseLink2SensorTransform()) return;
+    Eigen::Affine3d sensor_tf_eigen;
+    transformTFToEigen(sensor_tf_, sensor_tf_eigen);
+    ROS_ERROR_STREAM_THROTTLE(20.0, "sensor_tf_ rotation \n" << sensor_tf_eigen.rotation());
+    ROS_ERROR_STREAM_THROTTLE(20.0, "sensor_tf_ translation \n" << sensor_tf_eigen.translation().transpose());
 
     /* servo init condition */
     if(variable_sensor_tf_flag_ && ros::Time::now().toSec() - init_servo_st < 1.0 && init_servo_st > 0)
@@ -131,8 +136,12 @@ namespace sensor_plugin
         return;
       }
 
-    tf::Transform raw_sensor_tf;
+    tf::Transform raw_sensor_tf;  // ^{camera_init}H_{body}
     tf::poseMsgToTF(vo_msg->pose.pose, raw_sensor_tf); // motion update
+    Eigen::Affine3d raw_sensor_tf_eigen;
+    transformTFToEigen(raw_sensor_tf, raw_sensor_tf_eigen);
+    ROS_WARN_STREAM_THROTTLE(20.0, "raw_sensor_tf rotation\n" << raw_sensor_tf_eigen.rotation());
+    ROS_WARN_STREAM_THROTTLE(20.0, "raw_sensor_tf translation\n" << raw_sensor_tf_eigen.translation().transpose());
 
     /* temporal update */
     curr_timestamp_ = vo_msg->header.stamp.toSec() + delay_;
@@ -237,14 +246,40 @@ namespace sensor_plugin
               }
           }
 
+        bool exists_active_imu = false;
+        for(const auto& handler: estimator_->getImuHandlers())
+          {
+            if(handler->getStatus() == Status::ACTIVE)
+              {
+                exists_active_imu = true;
+                ROS_ERROR_STREAM("imu handler is active");
+                auto imu_handler = boost::dynamic_pointer_cast<sensor_plugin::Imu>(handler);
+                tf::Vector3 wz_b = imu_handler->getWzB();
+                Eigen::Vector3d wz_b_eigen;
+                vectorTFToEigen(wz_b, wz_b_eigen);
+                ROS_ERROR_STREAM("wz_b_eigen: " << wz_b_eigen.transpose());
+              }
+          }
+        if(!exists_active_imu)
+          ROS_ERROR_STREAM("There is no active imu to calculate iniital offset of {vo} w.r.t. {world}");
+
         /** step1: ^{w}H_{b'}, b': level frame of b **/
         tf::Transform w_bdash_f;
         tf::Matrix3x3 base_rot = estimator_->getOrientation(Frame::BASELINK, aerial_robot_estimation::EGOMOTION_ESTIMATE);
+        Eigen::Matrix3d base_rot_eigen;
+        matrixTFToEigen(base_rot, base_rot_eigen);
+        ROS_WARN_STREAM("base_rot\n" << base_rot_eigen);
         double r,p,y;
-        base_rot.getRPY(r, p, y); // we assume the orientation of baselink at the initial phase should not be entire vertical
-        w_bdash_f.setRotation(tf::createQuaternionFromYaw(y));
+        // base_rot.getRPY(r, p, y); // we assume the orientation of baselink at the initial phase should not be entire vertical
+        // w_bdash_f.setRotation(tf::createQuaternionFromYaw(y));
+        tf::Quaternion base_quat;
+        base_rot.getRotation(base_quat);
+        w_bdash_f.setRotation(base_quat);
 
         tf::Vector3 baselink_pos = estimator_->getPos(Frame::BASELINK, aerial_robot_estimation::EGOMOTION_ESTIMATE);
+        Eigen::Vector3d baselink_pos_eigen;
+        vectorTFToEigen(baselink_pos, baselink_pos_eigen);
+        ROS_ERROR_STREAM("baselink_pos " << baselink_pos_eigen.transpose());
         if(estimator_->getStateStatus(State::X_BASE, aerial_robot_estimation::EGOMOTION_ESTIMATE))
           w_bdash_f.getOrigin().setX(baselink_pos.x());
         if(estimator_->getStateStatus(State::Y_BASE, aerial_robot_estimation::EGOMOTION_ESTIMATE))
@@ -255,6 +290,7 @@ namespace sensor_plugin
         /* set the offset if we know the ground truth */
         if(estimator_->getStateStatus(State::Base::Rot, aerial_robot_estimation::GROUND_TRUTH))
           {
+            ROS_ERROR_STREAM("we know ground truth");
             w_bdash_f.setOrigin(estimator_->getPos(Frame::BASELINK, aerial_robot_estimation::GROUND_TRUTH));
             base_rot = estimator_->getOrientation(Frame::BASELINK, aerial_robot_estimation::GROUND_TRUTH);
             base_rot.getRPY(r, p, y);
@@ -263,11 +299,15 @@ namespace sensor_plugin
 
         /** step2: ^{vo}H_{b'} **/
         tf::Transform vo_bdash_f = raw_sensor_tf * sensor_tf_.inverse(); // ^{vo}H_{b}
-        vo_bdash_f.getBasis().getRPY(r,p,y);
-        vo_bdash_f.setRotation(tf::createQuaternionFromYaw(y)); // ^{vo}H_{b'}
+        // vo_bdash_f.getBasis().getRPY(r,p,y);
+        // vo_bdash_f.setRotation(tf::createQuaternionFromYaw(y)); // ^{vo}H_{b'}
 
         /** step3: ^{w}H_{vo} = ^{w}H_{b'} * ^{b'}H_{vo} **/
         world_offset_tf_ = w_bdash_f * vo_bdash_f.inverse();
+        Eigen::Affine3d world_offset_tf_eigen;
+        transformTFToEigen(world_offset_tf_, world_offset_tf_eigen);
+        ROS_ERROR_STREAM("world_offset_tf rotation\n" << world_offset_tf_eigen.rotation());
+        ROS_ERROR_STREAM("world_offset_tf translation\n" << world_offset_tf_eigen.translation().transpose());
 
         /* publish the offset tf if necessary */
         geometry_msgs::TransformStamped static_transformStamped;

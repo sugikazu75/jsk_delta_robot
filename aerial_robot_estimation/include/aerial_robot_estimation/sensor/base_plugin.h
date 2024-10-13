@@ -174,7 +174,7 @@ namespace sensor_plugin
     vector<int> experiment_indices_; // the fuser_experiment indices
 
     /* the transformation between sensor frame and baselink frame */
-    tf::Transform sensor_tf_;
+    tf::Transform sensor_tf_; // ^{baselink}H_{sensor}
 
     /* status */
     int sensor_status_;
