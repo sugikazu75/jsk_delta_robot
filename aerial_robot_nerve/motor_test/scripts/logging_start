@@ -1,3 +1,0 @@
-#!/bin/bash
-
-rostopic pub -1 /start_log_cmd std_msgs/Empty "{}"

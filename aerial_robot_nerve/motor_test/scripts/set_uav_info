@@ -1,7 +1,0 @@
-#!/bin/bash
-
-rostopic pub -1 /uav_info spinal/UavInfo "motor_num: 4
-uav_model: 0
-baselink: 0"
-
-echo "set uav info"
