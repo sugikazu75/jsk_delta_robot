@@ -35,6 +35,10 @@ private:
   double desire_coordinate_roll_;
   double desire_coordinate_pitch_;
 
+  /* joint angles*/
+  ros::Subscriber joint_states_sub_;
+  std::vector<ros::Publisher> joint_states_pubs_;
+
   /* gimbal angles */
   ros::Subscriber gimbals_control_sub_;
   std::vector<ros::Publisher> gimbal_control_pubs_;
@@ -48,6 +52,7 @@ private:
 
   void motorPwmCallback(const spinal::PwmsPtr & pwm_msg);
   void desireCoordinateCallback(const spinal::DesireCoord & msg);
+  void jointStatesCallback(const sensor_msgs::JointState & joint_state_msg);
   void gimbalsControlCallback(const sensor_msgs::JointState & joint_state_msg);
   void fourAxisCommandCallback(const spinal::FourAxisCommand & msg);
   void timerCallback(const ros::TimerEvent & e);

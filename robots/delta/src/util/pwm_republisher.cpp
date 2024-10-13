@@ -25,6 +25,13 @@ MotorPWMRepublisher::MotorPWMRepublisher(ros::NodeHandle nh, ros::NodeHandle nhp
   desire_coordinate_roll_ = 0.0;
   desire_coordinate_pitch_ = 0.0;
 
+  /* joint angles */
+  joint_states_sub_ = nh_.subscribe("joint_states", 1, &MotorPWMRepublisher::jointStatesCallback, this);
+  for(int i = 0; i < delta_robot_model_->getJointNum() - motor_num_; i++)
+    {
+      joint_states_pubs_.push_back(nh_.advertise<std_msgs::Float32>("debug/joint_states/joint" + std::to_string(i + 1), 1));
+    }
+
   /* gimbal angles */
   gimbals_control_sub_ = nh_.subscribe("gimbals_ctrl", 1, &MotorPWMRepublisher::gimbalsControlCallback, this);
   for(int i = 0; i < motor_num_; i++)
@@ -58,6 +65,40 @@ void MotorPWMRepublisher::desireCoordinateCallback(const spinal::DesireCoord & m
 {
   desire_coordinate_roll_ = msg.roll;
   desire_coordinate_pitch_ = msg.pitch;
+}
+
+void MotorPWMRepublisher::jointStatesCallback(const sensor_msgs::JointState & joint_state_msg)
+{
+  if(joint_state_msg.name.size() != joint_state_msg.position.size())
+    {
+      if(joint_state_msg.name.size() == 0 && joint_state_msg.position.size() == delta_robot_model_->getJointNum() - motor_num_)
+        {
+          for(int i = 0; i < motor_num_; i++)
+            {
+              std_msgs::Float32 msg;
+              msg.data = joint_state_msg.position.at(i);
+              joint_states_pubs_.at(i).publish(msg);
+            }
+          return;
+        }
+      else
+        {
+          ROS_ERROR("size of joint names and positions is not same");
+          return;
+        }
+    }
+  for(int i = 0; i < joint_state_msg.name.size(); i++)
+    {
+      for(int j = 0; j < delta_robot_model_->getJointNum() - motor_num_; j++)
+        {
+          if(joint_state_msg.name.at(i) == std::string("joint") + std::to_string(j + 1))
+            {
+              std_msgs::Float32 msg;
+              msg.data = joint_state_msg.position.at(i);
+              joint_states_pubs_.at(j).publish(msg);
+            }
+        }
+    }
 }
 
 void MotorPWMRepublisher::gimbalsControlCallback(const sensor_msgs::JointState & joint_state_msg)

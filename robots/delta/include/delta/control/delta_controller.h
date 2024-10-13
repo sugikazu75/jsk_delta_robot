@@ -49,7 +49,7 @@ namespace aerial_robot_control
     Eigen::VectorXd getTargetWrenchAccCogForOpt() {return target_wrench_acc_cog_;}
     Eigen::VectorXd getTargetWrenchControlFrameForOpt() {return target_wrench_control_frame_;}
     const std::vector<Eigen::MatrixXd>& getGimbalLinkJacobians() {return gimbal_link_jacobians_;}
-    Eigen::VectorXd getJointTorque() {return joint_torque_;}
+    Eigen::VectorXd getAnalyticalJointTorque() {return analytical_joint_torque_;}
     double getGroundMuForOpt() {return ground_mu_;}
     const std::vector<double>& getOptInitialX() {return opt_initial_x_;};
     const std::vector<double>& getOptCostWeights() {return opt_cost_weights_;}
@@ -107,7 +107,9 @@ namespace aerial_robot_control
     std::vector<float> nlopt_log_;
 
     /* joint torque */
-    Eigen::VectorXd joint_torque_;
+    double joint_torque_limit_;
+    Eigen::VectorXd analytical_joint_torque_;
+    Eigen::VectorXd actual_joint_torque_;
     std::vector<Eigen::MatrixXd> gimbal_link_jacobians_;
 
     /* flight mode */
@@ -148,6 +150,7 @@ namespace aerial_robot_control
     void standingPlanning();
     void calcTargetWrenchForGroundControl();
     void calcGroundFullLambda();
+    void optimizationWeightsPlanning();
     void nonlinearGroundWrenchAllocation();
 
     /* joint control */

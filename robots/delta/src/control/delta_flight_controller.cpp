@@ -191,7 +191,7 @@ void nonlinearWrenchAllocationTorqueConstraints(unsigned m, double *result, unsi
   const int joint_num = robot_model_for_control->getJointNum();
 
   /* get joint torque by mass */
-  Eigen::VectorXd tau = controller->getJointTorque(); // gimbal1, joint1, gimbal2, joint2, gimbal3
+  Eigen::VectorXd tau = controller->getAnalyticalJointTorque(); // gimbal1, joint1, gimbal2, joint2, gimbal3
 
   /* consider joint torque by thrust */
   const std::vector<Eigen::MatrixXd>& gimbal_link_jacobians = controller->getGimbalLinkJacobians();

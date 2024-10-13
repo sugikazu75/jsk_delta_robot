@@ -107,14 +107,14 @@ void RollingNavigator::rollingPlanner()
               }
             else
               {
-                if(fabs(cog_euler.y()) < rolling_pitch_update_thresh_)
+                if(fabs(cog_euler.y() - estimated_steep_(1)) < rolling_pitch_update_thresh_)
                   {
                     additional_rot_mat = Eigen::AngleAxisd(loop_du_ * target_pitch_ang_vel, b2);
                   }
                 else
                   {
                     additional_rot_mat.setIdentity();
-                    ROS_WARN_STREAM_THROTTLE(0.5, "[navigation] do not update target pitch because the pitch " << cog_euler.y() << " is  larger than thresh " << rolling_pitch_update_thresh_);
+                    ROS_WARN_STREAM_THROTTLE(0.5, "[navigation] do not update target pitch because the pitch " << cog_euler.y() - estimated_steep_(1) << " is  larger than thresh " << rolling_pitch_update_thresh_);
                   }
               }
           }

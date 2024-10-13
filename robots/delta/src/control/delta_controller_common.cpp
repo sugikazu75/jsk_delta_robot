@@ -37,7 +37,8 @@ void RollingController::initialize(ros::NodeHandle nh, ros::NodeHandle nhp,
   full_lambda_trans_ = Eigen::VectorXd::Zero(2 * motor_num_);
   full_lambda_rot_ = Eigen::VectorXd::Zero(2 * motor_num_);
 
-  joint_torque_.resize(robot_model_->getJointNum());
+  analytical_joint_torque_.resize(robot_model_->getJointNum());
+  actual_joint_torque_.resize(robot_model_->getJointNum());
   gimbal_link_jacobians_.resize(motor_num_);
 
   rosParamInit();
@@ -114,12 +115,28 @@ void RollingController::rosParamInit()
 
   getParam<string>(nhp_, "tf_prefix", tf_prefix_, std::string(""));
 
+  /* get tilt angle of each thruster */
   auto robot_model_xml = robot_model_->getRobotModelXml("robot_description");
   for(int i = 0; i < motor_num_; i++)
     {
       std::string rotor_tilt_name = std::string("rotor_tilt") + std::to_string(i + 1);
       TiXmlElement* rotor_tilt_attr = robot_model_xml.FirstChildElement("robot")->FirstChildElement(rotor_tilt_name);
       rotor_tilt_attr->Attribute("value", &rotor_tilt_.at(i));
+    }
+
+  /* get joint torque limit */
+  auto urdf_model = robot_model_->getUrdfModel();
+  std::vector<urdf::LinkSharedPtr> urdf_links;
+  urdf_model.getLinks(urdf_links);
+  for(const auto& link: urdf_links)
+    {
+      if(link->parent_joint)
+        {
+          if(link->parent_joint->name=="joint1")
+            {
+              joint_torque_limit_ = link->parent_joint->limits->effort;
+            }
+        }
     }
 
   /* get optimization weights for nonlinear wrench allocation */
@@ -225,6 +242,7 @@ void RollingController::controlCore()
 
         calcAccFromCog();
         calcFlightFullLambda();
+
         nonlinearWrenchAllocation();
         break;
       }
@@ -236,9 +254,12 @@ void RollingController::controlCore()
         /* for stand */
         rolling_robot_model_->setControlFrame("cp");
         robot_model_for_control_->setControlFrame("cp");
+
         standingPlanning();
         calcTargetWrenchForGroundControl();
         calcGroundFullLambda();
+
+        optimizationWeightsPlanning();
         nonlinearGroundWrenchAllocation();
         /* for stand */
         break;
@@ -588,6 +609,14 @@ void RollingController::jointStateCallback(const sensor_msgs::JointStateConstPtr
   cog_alined_tf.header.frame_id = tf::resolve(tf_prefix_, std::string("root"));
   cog_alined_tf.child_frame_id = tf::resolve(tf_prefix_, std::string("cog_alined"));
   br_.sendTransform(cog_alined_tf);
+
+  if(state->effort.size() != 0)
+    {
+      for(int i = 0; i < state->name.size(); i++)
+        {
+          actual_joint_torque_(i) = state->effort.at(i);
+        }
+    }
 }
 
 /* plugin registration */

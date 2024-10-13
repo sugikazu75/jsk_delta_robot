@@ -25,6 +25,7 @@ void RollingNavigator::initialize(ros::NodeHandle nh, ros::NodeHandle nhp,
   desire_coord_pub_ = nh_.advertise<spinal::DesireCoord>("desire_coordinate", 1);
   final_target_baselink_quat_sub_ = nh_.subscribe("final_target_baselink_quat", 1, &RollingNavigator::setFinalTargetBaselinkQuatCallback, this);
   final_target_baselink_rpy_sub_ = nh_.subscribe("final_target_baselink_rpy", 1, &RollingNavigator::setFinalTargetBaselinkRpyCallback, this);
+  joint_states_sub_ = nh_.subscribe("joint_states", 1, &RollingNavigator::jointStatesCallback, this);
   joints_control_pub_ = nh_.advertise<sensor_msgs::JointState>("joints_ctrl", 1);
   ik_target_rel_ee_pos_sub_ = nh_.subscribe("full_body_ik_target", 1, &RollingNavigator::fullBodyIKTargetRelPosCallback, this);
   joy_sub_ = nh_.subscribe("joy", 1, &RollingNavigator::joyCallback, this);
@@ -43,6 +44,9 @@ void RollingNavigator::initialize(ros::NodeHandle nh, ros::NodeHandle nhp,
 
   rotation_control_link_name_ = robot_model_->getBaselinkName();
 
+  joint_positions_ = Eigen::VectorXd::Zero(robot_model_->getJointNum());
+  joint_torques_ = Eigen::VectorXd::Zero(robot_model_->getJointNum());
+
   est_external_wrench_ = Eigen::VectorXd::Zero(6);
   est_external_wrench_cog_ = Eigen::VectorXd::Zero(6);
   estimated_steep_ = Eigen::VectorXd::Zero(2);
@@ -55,6 +59,10 @@ void RollingNavigator::initialize(ros::NodeHandle nh, ros::NodeHandle nhp,
   target_yaw_ang_vel_ = 0.0;
   pitch_ang_vel_updating_ = false;
   yaw_ang_vel_updating_ = false;
+
+  gimbal_reset_last_time_ = -1;
+  gimbal_reset_index_ = 0;
+  gimbal_reset_done_ = false;
 }
 
 void RollingNavigator::update()
@@ -103,6 +111,15 @@ void RollingNavigator::reset()
   target_yaw_ang_vel_ = 0.0;
   pitch_ang_vel_updating_ = false;
   yaw_ang_vel_updating_ = false;
+
+  gimbal_reset_last_time_ = -1;
+  gimbal_reset_index_ = 0;
+  gimbal_reset_done_ = false;
+  for(int i = 0; i < robot_model_->getRotorNum(); i++)
+    {
+      rolling_robot_model_->setGimbalPlanningFlag(i, 0);
+      rolling_robot_model_->setGimbalPlanningAngle(i, 0.0);
+    }
 
   ROS_INFO_STREAM("[navigation] reset navigator");
 
@@ -193,6 +210,59 @@ void RollingNavigator::estimateSteep()
         + 1.0 / steep_estimation_lpf_factor_ * estimated_steep;
     }
 }
+
+// void RollingNavigator::gimbalPlanner()
+// {
+//   auto gimbal_planning_flag = rolling_robot_model_->getGimbalPlanningFlag();
+//   auto gimbal_planning_angle = rolling_robot_model_->getGimbalPlanningAngle();
+//   auto current_gimbal_angles = rolling_robot_model_->getCurrentGimbalAngles();
+
+//   if(current_ground_navigation_mode_ == aerial_robot_navigation::ROLLING_STATE)
+//     {
+//       if(!ground_trajectory_mode_ && ros::Time::now().toSec() > ground_trajectory_start_time_ + ground_trajectory_duration_ + 4.0) // wait for a little time
+//         {
+//           if(!gimbal_reset_done_)
+//             {
+//               if(!gimbal_planning_flag.at(gimbal_reset_index_) && ros::Time::now().toSec() - gimbal_reset_last_time_ > 1.0)
+//                 {
+//                   rolling_robot_model_->setGimbalPlanningFlag(gimbal_reset_index_, 1);
+//                   rolling_robot_model_->setGimbalPlanningAngle(gimbal_reset_index_, M_PI / 2.0);
+//                   return;
+//                 }
+//               if(fabs(gimbal_planning_angle.at(gimbal_reset_index_) - current_gimbal_angles.at(gimbal_reset_index_)) < gimbal_planning_converged_thresh_)
+//                 {
+//                   rolling_robot_model_->setGimbalPlanningFlag(gimbal_reset_index_, 0);
+//                   ROS_INFO_STREAM("[navigation] planning for gimbal" << gimbal_reset_index_ << " is converged. target: " << gimbal_planning_angle.at(gimbal_reset_index_) << ", thresh: " << gimbal_planning_converged_thresh_);
+//                   gimbal_reset_index_++;
+//                   gimbal_reset_last_time_ = ros::Time::now().toSec();
+
+//                   if(gimbal_reset_index_ == rolling_robot_model_->getRotorNum())
+//                     {
+//                       gimbal_reset_done_ = true;
+//                       for(int i = 0; i < rolling_robot_model_->getRotorNum(); i++)
+//                         {
+//                           if(fabs(current_gimbal_angles.at(i) - M_PI /2.0) > M_PI / 2.0)
+//                             {
+//                               gimbal_reset_done_ = false;
+//                               gimbal_reset_index_ = i;
+//                               gimbal_reset_last_time_ = ros::Time::now().toSec();
+//                             }
+//                         }
+//                       if(gimbal_reset_done_) ROS_INFO_STREAM("[navigation] finished gimbal angle reset");
+//                     }
+//                 }
+//             }
+//         }
+//     }
+//   else
+//     {
+//       for(int i = 0; i < robot_model_->getRotorNum(); i++)
+//         {
+//           rolling_robot_model_->setGimbalPlanningFlag(i, 0);
+//           rolling_robot_model_->setGimbalPlanningAngle(i, 0.0);
+//         }
+//     }
+// }
 
 void RollingNavigator::rosPublishProcess()
 {
@@ -309,6 +379,7 @@ void RollingNavigator::rosParamInit()
   getParam<double>(navi_nh, "standing_baselink_roll_converged_thresh", standing_baselink_roll_converged_thresh_, 0.0);
   getParam<double>(navi_nh, "rolling_pitch_update_thresh", rolling_pitch_update_thresh_, 0.0);
   getParam<double>(navi_nh, "ground_trajectory_duration", ground_trajectory_duration_, 0.0);
+  getParam<double>(navi_nh, "gimbal_planning_converged_thresh", gimbal_planning_converged_thresh_, 0.1);
   getParam<double>(navi_nh, "steep_estimation_lpf_factor", steep_estimation_lpf_factor_, 20.0);
   getParam<std::string>(nhp_, "tf_prefix", tf_prefix_, std::string(""));
 }
@@ -341,14 +412,14 @@ void RollingNavigator::joyCallback(const sensor_msgs::JoyConstPtr & joy_msg)
 {
   sensor_msgs::Joy joy_cmd = (*joy_msg);
 
-  /* change to locomotion mode */
+  /* change to locomotion mode by L2 */
   if(joy_cmd.buttons[PS4_BUTTON_REAR_LEFT_2] && motion_mode_ != aerial_robot_navigation::LOCOMOTION_MODE)
     {
       ROS_INFO_STREAM("[joy] change to " << indexToGroundMotionModeString(aerial_robot_navigation::LOCOMOTION_MODE));
       setGroundMotionMode(aerial_robot_navigation::LOCOMOTION_MODE);
     }
 
-  /* change to manipulation mode when rolling state */
+  /* change to manipulation mode when rolling state by R2 */
   if(joy_cmd.buttons[PS4_BUTTON_REAR_RIGHT_2] && motion_mode_ != aerial_robot_navigation::MANIPULATION_MODE)
     {
       if(current_ground_navigation_mode_ == aerial_robot_navigation::ROLLING_STATE)
@@ -362,9 +433,33 @@ void RollingNavigator::joyCallback(const sensor_msgs::JoyConstPtr & joy_msg)
         }
     }
 
+  /* set joint angles to become circular form by R1 + L1 */
+  if(joy_cmd.buttons[PS4_BUTTON_REAR_RIGHT_1] && joy_cmd.buttons[PS4_BUTTON_REAR_LEFT_1])
+    {
+      setGroundMotionMode(aerial_robot_navigation::LOCOMOTION_MODE);
+      sensor_msgs::JointState msg;
+      msg.name = {"joint1", "joint2"};
+      msg.position = {2.0 / 3.0 * M_PI, 2.0 / 3.0 * M_PI};
+      joints_control_pub_.publish(msg);
+      ROS_INFO_STREAM_THROTTLE(1.0, "[navigation] set joint angles to become circular form and switch to locomotion mode");
+    }
+
   locomotionJoyCallback(joy_msg);
   transformJoyCallback(joy_msg);
 }
+
+void RollingNavigator::jointStatesCallback(const sensor_msgs::JointStatePtr & msg)
+{
+  for(int i = 0; i < msg->name.size(); i++)
+    {
+      joint_positions_(i) = msg->position.at(i);
+      if(msg->effort.size() != 0)
+        {
+          joint_torques_(i) = msg->effort.at(i);
+        }
+    }
+}
+
 
 /* plugin registration */
 #include <pluginlib/class_list_macros.h>

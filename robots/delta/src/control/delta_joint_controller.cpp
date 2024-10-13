@@ -7,7 +7,7 @@ void RollingController::jointTorquePreComputation()
 {
   /* assume robot_model_for_control_ is updated with current cog_desire_orientation and joint_positions */
   const int joint_num = robot_model_for_control_->getJointNum();
-  joint_torque_ = Eigen::VectorXd::Zero(joint_num); // gimbal1, joint1, gimbal2, joint2, gimbal3
+  analytical_joint_torque_ = Eigen::VectorXd::Zero(joint_num); // gimbal1, joint1, gimbal2, joint2, gimbal3
   const KDL::JntArray& joint_positions = robot_model_->getJointPositions();
 
   /* calculate jacobians of gimbal neutral coordinate */
@@ -22,7 +22,7 @@ void RollingController::jointTorquePreComputation()
   for(const auto& inertia : inertia_map)
     {
       Eigen::MatrixXd cog_coord_jacobian = robot_model_for_control_->getJacobian(joint_positions, inertia.first, inertia.second.getCOG());
-      joint_torque_ -= cog_coord_jacobian.rightCols(joint_num).transpose() * inertia.second.getMass() * (-gravity);
+      analytical_joint_torque_ -= cog_coord_jacobian.rightCols(joint_num).transpose() * inertia.second.getMass() * (-gravity);
     }
 
 
@@ -36,7 +36,7 @@ void RollingController::jointTorquePreComputation()
       KDL::Frame contacting_link_to_contact_point = contacting_link_frame.Inverse() * contact_point;
       Eigen::MatrixXd contact_point_jacobian = robot_model_for_control_->getJacobian(joint_positions, contacting_link_name, contacting_link_to_contact_point.p);
 
-      joint_torque_ -= contact_point_jacobian.rightCols(joint_num).transpose() * est_external_wrench_cog_;
+      analytical_joint_torque_ -= contact_point_jacobian.rightCols(joint_num).transpose() * est_external_wrench_cog_;
     }
 }
 

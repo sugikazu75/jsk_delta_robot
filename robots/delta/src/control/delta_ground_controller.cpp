@@ -187,6 +187,51 @@ void RollingController::calcGroundFullLambda()
   full_lambda_trans_ = full_lambda;
 }
 
+void RollingController::optimizationWeightsPlanning()
+{
+  // if(ground_navigation_mode_ == aerial_robot_navigation::STANDING_STATE)
+  //   {
+  //     opt_joint_torque_weight_ = 1.0;
+  //   }
+  // if(ground_navigation_mode_ == aerial_robot_navigation::ROLLING_STATE)
+  //   {
+  //     if(rolling_navigator_->getMotionMode() == aerial_robot_navigation::MANIPULATION_MODE)
+  //       {
+  //         opt_joint_torque_weight_ = 10.0;
+  //       }
+  //     else
+  //       {
+  //         opt_joint_torque_weight_ = 10.0;
+  //       }
+  //   }
+  int n_variables = 2 * motor_num_ + robot_model_->getJointNum() - motor_num_;
+  if(nlopt_log_.size() != n_variables)
+    return;
+
+  double current_joint_torque_weight = opt_joint_torque_weight_;
+  bool increase_flag = false;
+  for(int i = 2 * motor_num_; i < n_variables; i++)
+    {
+     if(fabs(nlopt_log_.at(i)) > 0.8 * joint_torque_limit_)
+       {
+        increase_flag = true;
+       }
+    }
+  // if(increase_flag)
+  //   {
+  //     // double delta_weight = 0.1 * ()
+  //       current_joint_torque_weight = std::clamp(current_joint_torque_weight + , 0.0, 10.0);
+  //   }
+  // else
+  //   {
+  //    current_joint_torque_weight = std::clamp(current_joint_torque_weight - 0.005, 0.0, 10.0);
+  //   }
+
+  opt_joint_torque_weight_ = current_joint_torque_weight;
+
+  ROS_WARN_STREAM_THROTTLE(5.0, "current joint torque weight: " << opt_joint_torque_weight_);
+}
+
 double nonlinearGroundWrenchAllocationMinObjective(const std::vector<double> &x, std::vector<double> &grad, void *ptr)
 {
   // 0 ~ motor_num : lambda
@@ -462,6 +507,12 @@ void RollingController::nonlinearGroundWrenchAllocation()
           lb.at(i + motor_num_) = 0;
           ub.at(i + motor_num_) = M_PI;
         }
+    }
+
+  for(int i = 2 * motor_num_; i < n_variables; i++)
+    {
+      lb.at(i) = -joint_torque_limit_;
+      ub.at(i) =  joint_torque_limit_;
     }
 
   slsqp_solver.set_lower_bounds(lb);

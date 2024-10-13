@@ -52,6 +52,7 @@ namespace aerial_robot_navigation
     void setGroundMotionMode(int state);
     inline int getCurrentGroundNavigationMode() {return current_ground_navigation_mode_;}
     inline int getPrevGroundNavigationMode() {return prev_ground_navigation_mode_;}
+    inline int getMotionMode() {return motion_mode_;}
 
     void setControllersResetFlag(bool flag) {controllers_reset_flag_ = flag;}
     bool getControllersResetFlag() {return controllers_reset_flag_;}
@@ -83,6 +84,9 @@ namespace aerial_robot_navigation
     std::string tf_prefix_;
     tf2_ros::TransformBroadcaster br_;
 
+    /* joint states */
+    ros::Subscriber joint_states_sub_;
+
     /* baselink rotation process */
     ros::Publisher desire_coord_pub_;
     ros::Subscriber final_target_baselink_quat_sub_, final_target_baselink_rpy_sub_;
@@ -112,6 +116,7 @@ namespace aerial_robot_navigation
     void transformPlanner();
     void calcEndEffetorJacobian();
     void fullBodyIKSolve();
+    void gimbalPlanner();
     void baselinkRotationProcess();
     void groundModeProcess();
     void rosPublishProcess();
@@ -122,12 +127,17 @@ namespace aerial_robot_navigation
     void groundMotionModeCallback(const std_msgs::Int16Ptr & msg);
     void setFinalTargetBaselinkQuatCallback(const geometry_msgs::QuaternionStampedConstPtr & msg);
     void setFinalTargetBaselinkRpyCallback(const geometry_msgs::Vector3StampedConstPtr & msg);
+    void jointStatesCallback(const sensor_msgs::JointStatePtr & msg);
     void jointsControlCallback(const sensor_msgs::JointStatePtr & msg);
     void ikTargetRelEEPosCallback(const geometry_msgs::Vector3Ptr & msg);
     void fullBodyIKTargetRelPosCallback(const geometry_msgs::Vector3Ptr & msg);
     void joyCallback(const sensor_msgs::JoyConstPtr & joy_msg);
     void transformJoyCallback(const sensor_msgs::JoyConstPtr & joy_msg);
     void locomotionJoyCallback(const sensor_msgs::JoyConstPtr & joy_msg);
+
+    /*joint states */
+    Eigen::VectorXd joint_positions_;
+    Eigen::VectorXd joint_torques_;
 
     /* navigation mode */
     int current_ground_navigation_mode_;
@@ -185,6 +195,12 @@ namespace aerial_robot_navigation
     Eigen::VectorXd est_external_wrench_cog_;
     Eigen::VectorXd estimated_steep_;
     double steep_estimation_lpf_factor_;
+
+    /* gimbal angle planner */
+    double gimbal_planning_converged_thresh_;
+    double gimbal_reset_last_time_;
+    int gimbal_reset_index_;
+    bool gimbal_reset_done_;
 
     /* param for joy stick control */
     double joy_stick_deadzone_;

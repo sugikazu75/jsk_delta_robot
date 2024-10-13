@@ -19,7 +19,7 @@ controller:
     gimbal_linear_solution_dist_weight: 1.0
     gimbal_current_angle_dist_weight: 3.0
     gimbal_center_dist_weight: 2.0
-    joint_torque_weight: 6.0
+    joint_torque_weight: 1.0
 
   xy:
     p_gain: 4.0
