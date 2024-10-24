@@ -46,14 +46,20 @@ namespace aerial_robot_control
     boost::shared_ptr<RollingRobotModel> getRobotModelForControl() {return robot_model_for_control_;}
 
     const std::vector<double>& getRotorTilt() {return rotor_tilt_;}
-    Eigen::VectorXd getTargetWrenchAccCogForOpt() {return target_wrench_acc_cog_;}
-    Eigen::VectorXd getTargetWrenchControlFrameForOpt() {return target_wrench_control_frame_;}
+    void setTargetAccCog(Eigen::VectorXd target_acc_cog) {target_acc_cog_ = target_acc_cog;}
+    Eigen::VectorXd getTargetAccCog() {return target_acc_cog_;}
+    void setTargetWrenchCpFbTerm(Eigen::Vector3d target_wrench_cp_fb_term) {target_wrench_cp_fb_term_ = target_wrench_cp_fb_term;}
+    Eigen::Vector3d getTargetWrenchCpFbTerm() {return target_wrench_cp_fb_term_;}
+    Eigen::Vector3d getGravityCompensateTerm() {return gravity_compensate_term_;}
     const std::vector<Eigen::MatrixXd>& getGimbalLinkJacobians() {return gimbal_link_jacobians_;}
+    Eigen::MatrixXd getContactPointJacobian() {return contact_point_jacobian_;}
     Eigen::VectorXd getJointTorque() {return joint_torque_;}
-    double getGroundMuForOpt() {return ground_mu_;}
+    bool getUseEstimatedExternalForce() {return use_estimated_external_force_;}
+    double getGroundMu() {return ground_mu_;}
     const std::vector<double>& getOptInitialX() {return opt_initial_x_;};
     const std::vector<double>& getOptCostWeights() {return opt_cost_weights_;}
     const double& getOptJointTorqueWeight() {return opt_joint_torque_weight_;}
+    const std::vector<float> getNLOptLog() {return nlopt_log_;}
 
     int getGroundNavigationMode() {return ground_navigation_mode_;}
 
@@ -62,15 +68,12 @@ namespace aerial_robot_control
     ros::Publisher flight_cmd_pub_;                   // for spinal
     ros::Publisher gimbal_control_pub_;               // for servo bridge
     ros::Publisher torque_allocation_matrix_inv_pub_; // for spinal
-    ros::Publisher gimbal_dof_pub_;                   // for spinal
-    ros::Publisher gimbal_indices_pub_;               // for spinal
     ros::Publisher target_vectoring_force_pub_;       // for debug
-    ros::Publisher target_wrench_acc_cog_pub_;        // for debug
+    ros::Publisher target_acc_cog_pub_;               // for debug
     ros::Publisher gravity_compensate_term_pub_;      // for debug
     ros::Publisher wrench_allocation_matrix_pub_;     // for debug
     ros::Publisher full_q_mat_pub_;                   // for debug
     ros::Publisher operability_pub_;                  // for debug
-    ros::Publisher target_acc_cog_pub_;               // for debug
     ros::Publisher exerted_wrench_cog_pub_;           // for debug
     ros::Publisher nlopt_log_pub_;                    // for debug
     ros::Subscriber joint_state_sub_;
@@ -98,8 +101,6 @@ namespace aerial_robot_control
     Eigen::MatrixXd q_mat_;
     Eigen::MatrixXd q_mat_inv_;
     double candidate_yaw_term_;
-    bool use_sr_inv_;
-    double sr_inv_weight_;
     std::string tf_prefix_;
     int ground_navigation_mode_;
     double torque_allocation_matrix_inv_pub_stamp_;
@@ -109,23 +110,24 @@ namespace aerial_robot_control
     /* joint torque */
     Eigen::VectorXd joint_torque_;
     std::vector<Eigen::MatrixXd> gimbal_link_jacobians_;
+    Eigen::MatrixXd contact_point_jacobian_;
 
     /* flight mode */
-    Eigen::VectorXd target_wrench_acc_cog_;
-    std::vector<double> target_acc_cog_;
+    Eigen::VectorXd target_acc_cog_;
     bool hovering_approximate_;
 
     /* ground mode */
+    double ground_mu_;
+    double rolling_minimum_lateral_force_;
+    Eigen::Vector3d target_wrench_cp_fb_term_;
+    Eigen::Matrix3d gravity_compensate_weights_;
+    Eigen::Vector3d gravity_compensate_term_;
+    bool use_estimated_external_force_;
     std::vector<double> opt_initial_x_;
     std::vector<double> opt_x_prev_;
     std::vector<double> opt_cost_weights_;
     bool opt_add_joint_torque_constraints_;
     double opt_joint_torque_weight_;
-    Eigen::VectorXd target_wrench_control_frame_;
-    Eigen::Vector3d gravity_compensate_term_;
-    double ground_mu_;
-    Eigen::MatrixXd gravity_compensate_weights_;
-    double rolling_minimum_lateral_force_;
     boost::shared_ptr<nloptConfig> nlopt_reconf_server_;
 
     /* common part */
@@ -134,7 +136,6 @@ namespace aerial_robot_control
     void controlCore() override;
     void activate() override;
     void rosParamInit();
-    void fullLambdaToActuatorInputs();
     void resolveGimbalOffset();
     void processGimbalAngles();
     void calcYawTerm();
@@ -146,13 +147,13 @@ namespace aerial_robot_control
 
     /* rolling mode */
     void standingPlanning();
-    void calcTargetWrenchForGroundControl();
+    void calcFeedbackTermForGroundControl();
+    void calcFeedforwardTermForGroundControl();
     void calcGroundFullLambda();
     void nonlinearGroundWrenchAllocation();
 
     /* joint control */
     void jointTorquePreComputation();
-    void calcJointTorque();
 
     /* send command */
     void sendCmd();
